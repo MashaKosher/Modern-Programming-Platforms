@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= title %></title>
+    <link rel="stylesheet" href="/css/style.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1><i class="fas fa-tasks"></i> <%= appConfig.name || 'Список задач' %></h1>
+            <p class="subtitle">Управляйте своими задачами эффективно</p>
+        </header>
+
+        <div class="add-task-section">
+            <form action="/tasks" method="POST" class="add-task-form">
+                <div class="input-group">
+                    <input type="text" name="title" placeholder="Добавить новую задачу..." required>
+                    <input type="date" name="dueDate" class="date-input" title="Ожидаемая дата завершения" min="<%= new Date().toISOString().split('T')[0] %>">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> Добавить
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <div class="stats">
+            <div class="stat-item">
+                <span class="stat-number"><%= tasks.length %></span>
+                <span class="stat-label">Всего задач</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-number"><%= tasks.filter(t => t.completed).length %></span>
+                <span class="stat-label">Выполнено</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-number"><%= tasks.filter(t => !t.completed).length %></span>
+                <span class="stat-label">Активных</span>
+            </div>
+        </div>
+
+        <div class="filter-section">
+            <div class="filter-buttons">
+                <button class="filter-btn active" data-filter="all">
+                    <i class="fas fa-list"></i> Все задачи
+                </button>
+                <button class="filter-btn" data-filter="active">
+                    <i class="fas fa-clock"></i> Активные
+                </button>
+                <button class="filter-btn" data-filter="completed">
+                    <i class="fas fa-check-circle"></i> Выполненные
+                </button>
+            </div>
+            <div class="search-section">
+                <div class="search-input-group">
+                    <input type="text" id="searchInput" placeholder="Поиск задач..." class="search-input">
+                    <button type="button" onclick="searchTasks()" class="btn btn-search">
+                        <i class="fas fa-search"></i>
+                    </button>
+                    <button type="button" onclick="clearSearch()" class="btn btn-clear">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="tasks-section">
+            <% if (tasks.length === 0) { %>
+                <div class="empty-state">
+                    <i class="fas fa-clipboard-list"></i>
+                    <h3>Нет задач</h3>
+                    <p>Добавьте свою первую задачу выше</p>
+                </div>
+            <% } else { %>
+                <div class="tasks-list">
+                    <% tasks.forEach(task => { %>
+                        <div class="task-item <%= task.completed ? 'completed' : '' %>" data-task-id="<%= task.id %>">
+                            <div class="task-content">
+                                <div class="task-checkbox">
+                                    <input type="checkbox" 
+                                           <%= task.completed ? 'checked' : '' %> 
+                                           onchange="toggleTask(<%= task.id %>)"
+                                           class="checkbox">
+                                </div>
+                                <div class="task-text">
+                                    <span class="task-title"><%= task.title %></span>
+                                    <div class="task-dates">
+                                        <span class="task-created">
+                                            <i class="fas fa-calendar-plus"></i>
+                                            Создано: <%= task.createdAt.toLocaleDateString('ru-RU') %>
+                                        </span>
+                                        <% if (task.dueDate) { %>
+                                            <% 
+                                                const today = new Date();
+                                                const dueDate = new Date(task.dueDate);
+                                                const isOverdue = !task.completed && dueDate < today;
+                                                const isToday = dueDate.toDateString() === today.toDateString();
+                                                const isTomorrow = dueDate.toDateString() === new Date(today.getTime() + 24 * 60 * 60 * 1000).toDateString();
+                                            %>
+                                            <span class="task-due <%= isOverdue ? 'overdue' : isToday ? 'today' : isTomorrow ? 'tomorrow' : '' %>">
+                                                <i class="fas fa-clock"></i>
+                                                <% if (isOverdue) { %>
+                                                    Просрочено: <%= dueDate.toLocaleDateString('ru-RU') %>
+                                                <% } else if (isToday) { %>
+                                                    Сегодня
+                                                <% } else if (isTomorrow) { %>
+                                                    Завтра
+                                                <% } else { %>
+                                                    До: <%= dueDate.toLocaleDateString('ru-RU') %>
+                                                <% } %>
+                                            </span>
+                                        <% } %>
+                                    </div>
+                                    <% if (task.attachments && task.attachments.length > 0) { %>
+                                        <div class="task-attachments">
+                                            <span class="attachments-label">
+                                                <i class="fas fa-paperclip"></i>
+                                                <%= task.attachments.length %> файл<%= task.attachments.length === 1 ? '' : (task.attachments.length < 5 ? 'а' : 'ов') %>
+                                            </span>
+                                            <div class="attachments-list">
+                                                <% task.attachments.forEach(function(attachment) { %>
+                                                    <% 
+                                                        let icon = 'fas fa-file';
+                                                        if (attachment.mimetype.startsWith('image/')) icon = 'fas fa-image';
+                                                        else if (attachment.mimetype === 'application/pdf') icon = 'fas fa-file-pdf';
+                                                        else if (attachment.mimetype.includes('word')) icon = 'fas fa-file-word';
+                                                        else if (attachment.mimetype.includes('excel')) icon = 'fas fa-file-excel';
+                                                        else if (attachment.mimetype.includes('zip')) icon = 'fas fa-file-archive';
+                                                        
+                                                        let fileSize = '';
+                                                        if (attachment.size < 1024) fileSize = attachment.size + ' B';
+                                                        else if (attachment.size < 1048576) fileSize = Math.round(attachment.size / 1024) + ' KB';
+                                                        else fileSize = Math.round(attachment.size / 1048576) + ' MB';
+                                                    %>
+                                                    <div class="attachment-item">
+                                                        <i class="<%= icon %>"></i>
+                                                        <span class="attachment-name" title="<%= attachment.originalName %>">
+                                                            <%= attachment.originalName.length > 20 ? attachment.originalName.substring(0, 17) + '...' : attachment.originalName %>
+                                                        </span>
+                                                        <span class="attachment-size">(<%= fileSize %>)</span>
+                                                        <div class="attachment-actions">
+                                                            <button onclick="downloadFile(<%= task.id %>, <%= attachment.id %>)" class="btn-download" title="Скачать">
+                                                                <i class="fas fa-download"></i>
+                                                            </button>
+                                                            <button onclick="deleteFile(<%= task.id %>, <%= attachment.id %>)" class="btn-delete-file" title="Удалить">
+                                                                <i class="fas fa-times"></i>
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                <% }); %>
+                                            </div>
+                                        </div>
+                                    <% } %>
+                                </div>
+                            </div>
+                            <div class="task-actions">
+                                <button class="btn btn-upload" onclick="openFileUpload(<%= task.id %>)" title="Прикрепить файл">
+                                    <i class="fas fa-paperclip"></i>
+                                </button>
+                                <button class="btn btn-edit" onclick="editTask(<%= task.id %>, '<%= task.title.replace(/'/g, "\\'") %>', '<%= task.dueDate ? task.dueDate.toISOString().split('T')[0] : '' %>')">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button class="btn btn-delete" onclick="deleteTask(<%= task.id %>)">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    <% }); %>
+                </div>
+            <% } %>
+        </div>
+    </div>
+
+    <div id="editModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Редактировать задачу</h3>
+                <span class="close" onclick="closeEditModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="modal-form-group">
+                    <label for="editTaskInput">Название задачи:</label>
+                    <input type="text" id="editTaskInput" placeholder="Название задачи...">
+                </div>
+                <div class="modal-form-group">
+                    <label for="editTaskDueDate">Ожидаемая дата завершения:</label>
+                    <input type="date" id="editTaskDueDate" class="date-input" min="<%= new Date().toISOString().split('T')[0] %>">
+                    <button type="button" class="btn-clear-date" onclick="clearDueDate()" title="Очистить дату">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeEditModal()">Отмена</button>
+                <button class="btn btn-primary" onclick="saveTask()">Сохранить</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="uploadModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Прикрепить файл к задаче</h3>
+                <span class="close" onclick="closeUploadModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="uploadForm" enctype="multipart/form-data">
+                    <div class="upload-area">
+                        <div class="upload-icon">
+                            <i class="fas fa-cloud-upload-alt"></i>
+                        </div>
+                        <p>Перетащите файл сюда или нажмите для выбора</p>
+                        <input type="file" id="fileInput" name="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,.rar">
+                        <div class="file-info">
+                            <small>Максимальный размер: 5MB</small><br>
+                            <small>Поддерживаемые форматы: изображения, PDF, документы, архивы</small>
+                        </div>
+                    </div>
+                    <div id="selectedFile" class="selected-file" style="display: none;">
+                        <div class="file-preview">
+                            <i id="fileIcon" class="fas fa-file"></i>
+                            <div class="file-details">
+                                <span id="fileName"></span>
+                                <span id="fileSize"></span>
+                            </div>
+                            <button type="button" onclick="clearSelectedFile()" class="btn-remove-file">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeUploadModal()">Отмена</button>
+                <button class="btn btn-primary" onclick="uploadFile()" id="uploadBtn" disabled>Загрузить</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Глобальные переменные для JavaScript
+        window.appConfig = {
+            name: '<%= appConfig.name || "Todo App" %>',
+            version: '<%= appConfig.version || "1.0.0" %>',
+        };
+    </script>
+    <script src="/js/script.js"></script>
+</body>
+</html>

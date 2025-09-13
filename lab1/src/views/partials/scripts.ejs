@@ -1,0 +1,11 @@
+<% if (typeof additionalScripts !== 'undefined' && additionalScripts) { %>
+    <%- additionalScripts %>
+<% } %>
+
+<script>
+    // Глобальные переменные для JavaScript
+    window.appConfig = {
+        name: '<%= appConfig.name || "Todo App" %>',
+        version: '<%= appConfig.version || "1.0.0" %>',
+    };
+</script>
