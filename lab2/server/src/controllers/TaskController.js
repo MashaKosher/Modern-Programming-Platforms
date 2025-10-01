@@ -1,0 +1,368 @@
+const TaskService = require('../services/TaskService');
+const { getFileIcon, formatFileSize } = require('../middleware/upload');
+const { asyncHandler } = require('../middleware/errorHandler');
+const path = require('path');
+const fs = require('fs');
+
+class TaskController {
+    constructor() {
+        this.taskService = new TaskService();
+    }
+
+    // GET /v2/tasks - Получить все задачи
+    getAllTasks = asyncHandler(async (req, res) => {
+        try {
+            const tasks = await this.taskService.getAllTasks();
+            const stats = await this.taskService.getStats();
+            
+            res.json({
+                success: true,
+                data: {
+                    tasks: tasks,
+                    stats: stats
+                },
+                message: 'Задачи успешно получены'
+            });
+        } catch (error) {
+            console.error('Ошибка при получении задач:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Ошибка при получении задач'
+            });
+        }
+    });
+
+    // GET /v2/tasks/:id - Получить задачу по ID
+    getTaskById = asyncHandler(async (req, res) => {
+        try {
+            const { id } = req.params;
+            const task = await this.taskService.getTaskById(id);
+            
+            res.json({
+                success: true,
+                data: task,
+                message: 'Задача успешно получена'
+            });
+        } catch (error) {
+            console.error('Ошибка при получении задачи:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Ошибка при получении задачи'
+            });
+        }
+    });
+
+    // POST /v2/tasks - Создать новую задачу
+    createTask = asyncHandler(async (req, res) => {
+        try {
+            const { title, dueDate } = req.body;
+            
+            if (!title || title.trim().length === 0) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Название задачи обязательно'
+                });
+            }
+
+            const task = await this.taskService.createTask(title, dueDate);
+            
+            res.status(201).json({
+                success: true,
+                data: task,
+                message: 'Задача успешно создана'
+            });
+        } catch (error) {
+            console.error('Ошибка при создании задачи:', error);
+            res.status(400).json({
+                success: false,
+                message: error.message
+            });
+        }
+    });
+
+    // PUT /v2/tasks/:id - Обновить задачу
+    updateTask = asyncHandler(async (req, res) => {
+        try {
+            const { id } = req.params;
+            const { title, dueDate, completed } = req.body;
+
+            const updates = {};
+            if (title !== undefined) {
+                if (!title || title.trim().length === 0) {
+                    return res.status(400).json({
+                        success: false,
+                        message: 'Название задачи обязательно'
+                    });
+                }
+                updates.title = title.trim();
+            }
+            if (dueDate !== undefined) {
+                updates.dueDate = dueDate || null;
+            }
+            if (completed !== undefined) {
+                updates.completed = completed;
+            }
+
+            const task = await this.taskService.updateTask(id, updates);
+            
+            res.json({
+                success: true,
+                data: task,
+                message: 'Задача успешно обновлена'
+            });
+        } catch (error) {
+            console.error('Ошибка при обновлении задачи:', error);
+            res.status(400).json({
+                success: false,
+                message: error.message
+            });
+        }
+    });
+
+    // PATCH /v2/tasks/:id/toggle - Переключить статус задачи
+    toggleTask = asyncHandler(async (req, res) => {
+        try {
+            const { id } = req.params;
+            const task = await this.taskService.toggleTask(id);
+            
+            res.json({
+                success: true,
+                data: task,
+                message: 'Статус задачи обновлен'
+            });
+        } catch (error) {
+            console.error('Ошибка при переключении статуса задачи:', error);
+            res.status(400).json({
+                success: false,
+                message: error.message
+            });
+        }
+    });
+
+    // DELETE /v2/tasks/:id - Удалить задачу
+    deleteTask = asyncHandler(async (req, res) => {
+        try {
+            const { id } = req.params;
+            const task = await this.taskService.deleteTask(id);
+            
+            res.json({
+                success: true,
+                data: task,
+                message: 'Задача успешно удалена'
+            });
+        } catch (error) {
+            console.error('Ошибка при удалении задачи:', error);
+            res.status(400).json({
+                success: false,
+                message: error.message
+            });
+        }
+    });
+
+    // GET /v2/tasks/stats - Получить статистику
+    getStats = asyncHandler(async (req, res) => {
+        try {
+            const stats = await this.taskService.getStats();
+            res.json({
+                success: true,
+                data: stats,
+                message: 'Статистика успешно получена'
+            });
+        } catch (error) {
+            console.error('Ошибка при получении статистики:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Ошибка при получении статистики'
+            });
+        }
+    });
+
+    // GET /v2/tasks/search - Поиск задач
+    searchTasks = asyncHandler(async (req, res) => {
+        try {
+            const { q } = req.query;
+            const tasks = await this.taskService.searchTasks(q);
+            
+            res.json({
+                success: true,
+                data: {
+                    tasks: tasks,
+                    query: q || '',
+                    count: tasks.length
+                },
+                message: 'Поиск выполнен успешно'
+            });
+        } catch (error) {
+            console.error('Ошибка при поиске задач:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Ошибка при поиске задач'
+            });
+        }
+    });
+
+    // GET /v2/tasks/status/:status - Получить задачи по статусу
+    getTasksByStatus = asyncHandler(async (req, res) => {
+        try {
+            const { status } = req.params;
+            
+            if (!['active', 'completed'].includes(status)) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Неверный статус. Используйте: active или completed'
+                });
+            }
+            
+            const completed = status === 'completed';
+            const tasks = await this.taskService.getTasksByStatus(completed);
+            
+            res.json({
+                success: true,
+                data: {
+                    tasks: tasks,
+                    status: status,
+                    count: tasks.length
+                },
+                message: 'Задачи получены успешно'
+            });
+        } catch (error) {
+            console.error('Ошибка при получении задач по статусу:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Ошибка при получении задач'
+            });
+        }
+    });
+
+    // GET /v2/tasks/due-soon - Получить задачи с истекающим сроком
+    getTasksDueSoon = asyncHandler(async (req, res) => {
+        try {
+            const { days = 3 } = req.query;
+            const tasks = await this.taskService.getTasksDueSoon(parseInt(days));
+            
+            res.json({
+                success: true,
+                data: {
+                    tasks: tasks,
+                    days: parseInt(days),
+                    count: tasks.length
+                },
+                message: 'Задачи с истекающим сроком получены'
+            });
+        } catch (error) {
+            console.error('Ошибка при получении задач с истекающим сроком:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Ошибка при получении задач'
+            });
+        }
+    });
+
+    // GET /v2/tasks/overdue - Получить просроченные задачи
+    getOverdueTasks = asyncHandler(async (req, res) => {
+        try {
+            const tasks = await this.taskService.getOverdueTasks();
+            
+            res.json({
+                success: true,
+                data: {
+                    tasks: tasks,
+                    count: tasks.length
+                },
+                message: 'Просроченные задачи получены'
+            });
+        } catch (error) {
+            console.error('Ошибка при получении просроченных задач:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Ошибка при получении задач'
+            });
+        }
+    });
+
+    // POST /v2/tasks/:id/upload - Загрузить файл к задаче
+    uploadFile = asyncHandler(async (req, res) => {
+        try {
+            const { id } = req.params;
+            if (!req.file) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Файл не был загружен'
+                });
+            }
+
+            const attachment = await this.taskService.addAttachmentToTask(
+                id,
+                req.file.filename,
+                req.file.originalname,
+                req.file.mimetype,
+                req.file.size
+            );
+
+            res.json({
+                success: true,
+                data: {
+                    attachment: {
+                        ...attachment,
+                        icon: getFileIcon(attachment.mimetype),
+                        formattedSize: formatFileSize(attachment.size)
+                    }
+                },
+                message: 'Файл успешно загружен'
+            });
+        } catch (error) {
+            console.error('Ошибка при загрузке файла:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Ошибка при загрузке файла'
+            });
+        }
+    });
+
+    // GET /v2/tasks/:id/files/:attachmentId/download - Скачать файл
+    downloadFile = asyncHandler(async (req, res) => {
+        try {
+            const { id, attachmentId } = req.params;
+            const attachment = await this.taskService.getAttachment(id, parseFloat(attachmentId));
+
+            const filePath = path.join(__dirname, '../../uploads', attachment.filename);
+            
+            if (!fs.existsSync(filePath)) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Файл не найден на сервере'
+                });
+            }
+
+            res.download(filePath, attachment.originalName);
+        } catch (error) {
+            console.error('Ошибка при скачивании файла:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Ошибка при скачивании файла'
+            });
+        }
+    });
+
+    // DELETE /v2/tasks/:id/files/:attachmentId - Удалить файл
+    deleteFile = asyncHandler(async (req, res) => {
+        try {
+            const { id, attachmentId } = req.params;
+            const attachment = await this.taskService.removeAttachmentFromTask(id, parseFloat(attachmentId));
+
+            res.json({
+                success: true,
+                data: attachment,
+                message: 'Файл успешно удален'
+            });
+        } catch (error) {
+            console.error('Ошибка при удалении файла:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Ошибка при удалении файла'
+            });
+        }
+    });
+}
+
+module.exports = TaskController;
