@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react';
+import { useAuthContext } from '../hooks/useAuthContext';
+import UserProfile from './UserProfile';
 
 function Header() {
   const [displayText, setDisplayText] = useState('');
   const [showCursor, setShowCursor] = useState(true);
   const fullText = 'Список задач';
+  const { isAuthenticated } = useAuthContext();
 
   useEffect(() => {
     let index = 0;
@@ -24,10 +27,15 @@ function Header() {
 
   return (
     <header className="header">
-      <h1 style={{ borderRight: showCursor ? '2px solid #ffd700' : 'none' }}>
-        {displayText}
-      </h1>
-      <p className="subtitle">Управляйте своими задачами эффективно</p>
+      <div className="header-content">
+        <div className="header-text">
+          <h1 style={{ borderRight: showCursor ? '2px solid #ffd700' : 'none' }}>
+            {displayText}
+          </h1>
+          <p className="subtitle">Управляйте своими задачами эффективно</p>
+        </div>
+        {isAuthenticated && <UserProfile />}
+      </div>
     </header>
   );
 }

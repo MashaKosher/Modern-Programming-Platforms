@@ -1,10 +1,14 @@
 const express = require('express');
 const TaskController = require('../controllers/TaskController');
+const { authenticateToken } = require('../middleware/auth');
 const { upload, handleMulterError, secureUpload } = require('../middleware/upload');
 const { strictLimiter, uploadLimiter } = require('../middleware/security');
 
 const router = express.Router();
 const taskController = new TaskController();
+
+// Все маршруты задач требуют аутентификации
+router.use(authenticateToken);
 
 // Специальные маршруты (должны быть перед параметризованными)
 router.get('/stats', taskController.getStats);

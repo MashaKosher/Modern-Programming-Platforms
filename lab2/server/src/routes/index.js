@@ -1,5 +1,6 @@
 const express = require('express');
 const taskRoutes = require('./taskRoutes');
+const authRoutes = require('./authRoutes');
 const config = require('../../config/config');
 
 const router = express.Router();
@@ -13,6 +14,12 @@ router.get('/', (req, res) => {
             version: config.app.version,
             apiPrefix: config.app.apiPrefix,
             endpoints: {
+                auth: {
+                    register: `${config.app.apiPrefix}/auth/register`,
+                    login: `${config.app.apiPrefix}/auth/login`,
+                    me: `${config.app.apiPrefix}/auth/me`,
+                    verify: `${config.app.apiPrefix}/auth/verify`
+                },
                 tasks: `${config.app.apiPrefix}/tasks`,
                 stats: `${config.app.apiPrefix}/tasks/stats`,
                 search: `${config.app.apiPrefix}/tasks/search`,
@@ -41,6 +48,22 @@ router.get('/health', (req, res) => {
         message: 'Сервер работает нормально'
     });
 });
+
+// Тестовый эндпоинт без аутентификации
+router.get('/test', (req, res) => {
+    res.json({
+        success: true,
+        data: {
+            message: 'Тестовый эндпоинт работает',
+            timestamp: new Date().toISOString(),
+            authHeader: req.headers.authorization ? 'присутствует' : 'отсутствует'
+        },
+        message: 'Тестовый маршрут доступен'
+    });
+});
+
+// Подключаем маршруты аутентификации
+router.use('/auth', authRoutes);
 
 // Подключаем маршруты задач
 router.use('/tasks', taskRoutes);

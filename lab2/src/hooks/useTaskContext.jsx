@@ -1,5 +1,6 @@
 import { createContext, useContext, useReducer, useCallback, useEffect } from 'react';
 import ApiService from '../services/api';
+import { useAuthContext } from './useAuthContext';
 
 const TaskContext = createContext();
 
@@ -115,16 +116,28 @@ function taskReducer(state, action) {
 
 export function TaskProvider({ children }) {
   const [state, dispatch] = useReducer(taskReducer, initialState);
+  const { isAuthenticated } = useAuthContext();
 
-  // Загрузить задачи при инициализации
+  // Загрузить задачи при инициализации, только если пользователь аутентифицирован
   useEffect(() => {
-    loadTasks();
-  }, []);
+    if (isAuthenticated) {
+      loadTasks();
+    } else {
+      // Если пользователь не аутентифицирован, очищаем задачи
+      dispatch({ type: 'SET_TASKS', payload: [] });
+    }
+  }, [isAuthenticated]);
 
   const loadTasks = async (retryCount = 0) => {
+    // Не загружать задачи, если пользователь не аутентифицирован
+    if (!isAuthenticated) {
+      console.log('Пользователь не аутентифицирован, пропускаем загрузку задач');
+      return;
+    }
+
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
-      
+
       // Увеличенная задержка для первого запроса, чтобы дать серверу время запуститься
       if (retryCount === 0) {
         console.log('Ожидание запуска сервера...');
@@ -134,7 +147,7 @@ export function TaskProvider({ children }) {
         console.log(`Повторная попытка ${retryCount}/3 через ${delay/1000}с...`);
         await new Promise(resolve => setTimeout(resolve, delay));
       }
-      
+
       const result = await ApiService.getTasks();
       
       if (result && result.tasks) {
@@ -151,23 +164,41 @@ export function TaskProvider({ children }) {
       }
     } catch (error) {
       console.error('Ошибка загрузки задач:', error);
-      
+
+      // Проверяем тип ошибки
+      if (error.message.includes('Требуется аутентификация')) {
+        // Ошибка аутентификации - не повторять попытки
+        dispatch({ type: 'SET_ERROR', payload: error.message });
+        return;
+      }
+
       // Повторить попытку до 3 раз
       if (retryCount < 3) {
         setTimeout(() => {
           loadTasks(retryCount + 1);
         }, 1000);
       } else {
-        dispatch({ type: 'SET_ERROR', payload: `Не удалось подключиться к серверу. Проверьте, что сервер запущен на http://localhost:3001` });
+        // Проверяем тип ошибки
+        if (error.message.includes('Требуется аутентификация')) {
+          dispatch({ type: 'SET_ERROR', payload: error.message });
+        } else {
+          dispatch({ type: 'SET_ERROR', payload: `Не удалось подключиться к серверу. Проверьте, что сервер запущен на http://localhost:3001` });
+        }
       }
     }
   };
 
   const addTask = useCallback(async (title, dueDate) => {
+    // Не создавать задачи, если пользователь не аутентифицирован
+    if (!isAuthenticated) {
+      dispatch({ type: 'SET_ERROR', payload: 'Требуется аутентификация. Войдите в систему' });
+      return;
+    }
+
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
       const result = await ApiService.createTask(title, dueDate);
-      
+
       if (result.success) {
         const newTask = {
           ...result.data,
@@ -180,13 +211,19 @@ export function TaskProvider({ children }) {
     } catch (error) {
       dispatch({ type: 'SET_ERROR', payload: error.message });
     }
-  }, []);
+  }, [isAuthenticated]);
 
   const updateTask = useCallback(async (id, updates) => {
+    // Не обновлять задачи, если пользователь не аутентифицирован
+    if (!isAuthenticated) {
+      dispatch({ type: 'SET_ERROR', payload: 'Требуется аутентификация. Войдите в систему' });
+      return;
+    }
+
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
       const result = await ApiService.updateTask(id, updates);
-      
+
       if (result.success) {
         const updatedTask = {
           ...result.data,
@@ -199,12 +236,18 @@ export function TaskProvider({ children }) {
     } catch (error) {
       dispatch({ type: 'SET_ERROR', payload: error.message });
     }
-  }, []);
+  }, [isAuthenticated]);
 
   const toggleTask = useCallback(async (id) => {
+    // Не переключать задачи, если пользователь не аутентифицирован
+    if (!isAuthenticated) {
+      dispatch({ type: 'SET_ERROR', payload: 'Требуется аутентификация. Войдите в систему' });
+      return;
+    }
+
     try {
       const result = await ApiService.toggleTask(id);
-      
+
       if (result.success) {
         const updatedTask = {
           ...result.data,
@@ -216,25 +259,37 @@ export function TaskProvider({ children }) {
     } catch (error) {
       dispatch({ type: 'SET_ERROR', payload: error.message });
     }
-  }, []);
+  }, [isAuthenticated]);
 
   const deleteTask = useCallback(async (id) => {
+    // Не удалять задачи, если пользователь не аутентифицирован
+    if (!isAuthenticated) {
+      dispatch({ type: 'SET_ERROR', payload: 'Требуется аутентификация. Войдите в систему' });
+      return;
+    }
+
     try {
       const result = await ApiService.deleteTask(id);
-      
+
       if (result.success) {
         dispatch({ type: 'DELETE_TASK', payload: { id } });
       }
     } catch (error) {
       dispatch({ type: 'SET_ERROR', payload: error.message });
     }
-  }, []);
+  }, [isAuthenticated]);
 
   const addAttachment = useCallback(async (taskId, file) => {
+    // Не загружать файлы, если пользователь не аутентифицирован
+    if (!isAuthenticated) {
+      dispatch({ type: 'SET_ERROR', payload: 'Требуется аутентификация. Войдите в систему' });
+      return;
+    }
+
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
       const result = await ApiService.uploadFile(taskId, file);
-      
+
       if (result.success && result.data && result.data.attachment) {
         dispatch({
           type: 'ADD_ATTACHMENT',
@@ -254,12 +309,18 @@ export function TaskProvider({ children }) {
       console.error('Ошибка добавления вложения:', error);
       dispatch({ type: 'SET_ERROR', payload: error.message });
     }
-  }, []);
+  }, [isAuthenticated]);
 
   const removeAttachment = useCallback(async (taskId, attachmentId) => {
+    // Не удалять файлы, если пользователь не аутентифицирован
+    if (!isAuthenticated) {
+      dispatch({ type: 'SET_ERROR', payload: 'Требуется аутентификация. Войдите в систему' });
+      return;
+    }
+
     try {
       const result = await ApiService.deleteFile(taskId, attachmentId);
-      
+
       if (result.success) {
         dispatch({
           type: 'REMOVE_ATTACHMENT',
@@ -269,7 +330,7 @@ export function TaskProvider({ children }) {
     } catch (error) {
       dispatch({ type: 'SET_ERROR', payload: error.message });
     }
-  }, []);
+  }, [isAuthenticated]);
 
   const setFilter = useCallback((filter) => {
     dispatch({

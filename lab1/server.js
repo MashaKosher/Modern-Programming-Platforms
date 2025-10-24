@@ -39,7 +39,10 @@ process.on('unhandledRejection', (reason, promise) => {
 
 const server = app.listen(config.server.port, config.server.host, () => {
     log('info', `${config.app.name} v${config.app.version}`);
-    log('info', `Сервер запущен на http://${config.server.host}:${config.server.port}`);
+    log('info', `Сервер запущен на порту ${config.server.port}`);
+    log('info', `Локальный доступ: http://localhost:${config.server.port}`);
+    log('info', `Сетевой доступ: http://${config.server.host}:${config.server.port}`);
+    log('info', `CORS: разрешены запросы с ${config.cors.origin}`);
 });
 
 module.exports = server;

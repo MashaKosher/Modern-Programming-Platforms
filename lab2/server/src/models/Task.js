@@ -1,16 +1,19 @@
 class Task {
-    constructor(id, title, completed = false, createdAt = new Date(), dueDate = null, attachments = []) {
+    constructor(id, title, completed = false, createdAt = new Date(), updatedAt = new Date(), dueDate = null, attachments = [], userId = null) {
         this.id = id;
         this.title = title;
         this.completed = completed;
         this.createdAt = createdAt;
+        this.updatedAt = updatedAt;
         this.dueDate = dueDate;
         this.attachments = attachments;
+        this.userId = userId;
     }
 
-    static create(title, dueDate = null) {
+    static create(title, dueDate = null, userId = null) {
         const id = Date.now();
-        return new Task(id, title, false, new Date(), dueDate, []);
+        const now = new Date();
+        return new Task(id, title, false, now, now, dueDate, [], userId);
     }
 
     static validate(taskData) {
@@ -59,6 +62,7 @@ class Task {
             title: this.title,
             completed: this.completed,
             createdAt: this.createdAt,
+            updatedAt: this.updatedAt,
             dueDate: this.dueDate,
             attachments: this.attachments
         };
@@ -70,8 +74,10 @@ class Task {
             data.title,
             data.completed,
             new Date(data.createdAt),
+            data.updatedAt ? new Date(data.updatedAt) : new Date(data.createdAt),
             data.dueDate ? new Date(data.dueDate) : null,
-            data.attachments || []
+            data.attachments || [],
+            data.userId || null
         );
     }
 
@@ -85,11 +91,13 @@ class Task {
         if (updates.dueDate !== undefined) {
             this.dueDate = updates.dueDate ? new Date(updates.dueDate) : null;
         }
+        this.updatedAt = new Date();
         return this;
     }
 
     toggle() {
         this.completed = !this.completed;
+        this.updatedAt = new Date();
         return this;
     }
 

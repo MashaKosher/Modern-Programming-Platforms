@@ -1,7 +1,7 @@
 const config = {
     server: {
         port: process.env.PORT || 3001,
-        host: process.env.HOST || 'localhost',
+        host: process.env.HOST || '0.0.0.0',
     },
 
     app: {
@@ -21,6 +21,11 @@ const config = {
         options: {
             maxAge: process.env.NODE_ENV === 'production' ? '1d' : 0
         }
+    },
+
+    cors: {
+        origin: process.env.CORS_ORIGIN || '*',
+        credentials: process.env.CORS_CREDENTIALS === 'true'
     },
 
 

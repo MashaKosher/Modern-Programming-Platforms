@@ -9,6 +9,7 @@ const { getConfig } = require('./config');
 const routes = require('./src/routes');
 const errorHandler = require('./src/middleware/errorHandler');
 const logger = require('./src/middleware/logger');
+const cors = require('./src/middleware/cors');
 
 
 const config = getConfig();
@@ -19,6 +20,7 @@ app.set('view engine', config.viewEngine.engine);
 app.set('views', path.join(__dirname, config.viewEngine.viewsPath));
 
 
+app.use(cors);
 app.use(logger);
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());

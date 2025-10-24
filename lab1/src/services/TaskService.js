@@ -20,7 +20,14 @@ class TaskService {
         ];
 
         defaultTasks.forEach(taskData => {
-            const task = Task.fromJSON(taskData);
+            const task = new Task(
+                taskData.id,
+                taskData.title,
+                taskData.completed,
+                taskData.createdAt,
+                taskData.dueDate,
+                []
+            );
             this.tasks.set(task.id, task);
         });
     }

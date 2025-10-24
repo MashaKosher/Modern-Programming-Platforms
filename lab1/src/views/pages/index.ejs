@@ -90,12 +90,12 @@
                                     <div class="task-dates">
                                         <span class="task-created">
                                             <i class="fas fa-calendar-plus"></i>
-                                            Создано: <%= task.createdAt.toLocaleDateString('ru-RU') %>
+                                            Создано: <%= (task.createdAt instanceof Date ? task.createdAt : new Date(task.createdAt)).toLocaleDateString('ru-RU') %>
                                         </span>
                                         <% if (task.dueDate) { %>
                                             <% 
                                                 const today = new Date();
-                                                const dueDate = new Date(task.dueDate);
+                                                const dueDate = task.dueDate instanceof Date ? task.dueDate : new Date(task.dueDate);
                                                 const isOverdue = !task.completed && dueDate < today;
                                                 const isToday = dueDate.toDateString() === today.toDateString();
                                                 const isTomorrow = dueDate.toDateString() === new Date(today.getTime() + 24 * 60 * 60 * 1000).toDateString();
@@ -160,7 +160,7 @@
                                 <button class="btn btn-upload" onclick="openFileUpload(<%= task.id %>)" title="Прикрепить файл">
                                     <i class="fas fa-paperclip"></i>
                                 </button>
-                                <button class="btn btn-edit" onclick="editTask(<%= task.id %>, '<%= task.title.replace(/'/g, "\\'") %>', '<%= task.dueDate ? task.dueDate.toISOString().split('T')[0] : '' %>')">
+                                <button class="btn btn-edit" onclick="editTask(<%= task.id %>, '<%= task.title.replace(/'/g, "\\'") %>', '<%= task.dueDate ? (task.dueDate instanceof Date ? task.dueDate.toISOString().split('T')[0] : new Date(task.dueDate).toISOString().split('T')[0]) : '' %>')">
                                     <i class="fas fa-edit"></i>
                                 </button>
                                 <button class="btn btn-delete" onclick="deleteTask(<%= task.id %>)">
@@ -244,7 +244,7 @@
         // Глобальные переменные для JavaScript
         window.appConfig = {
             name: '<%= appConfig.name || "Todo App" %>',
-            version: '<%= appConfig.version || "1.0.0" %>',
+            version: '<%= appConfig.version || "1.0.0" %>'
         };
     </script>
     <script src="/js/script.js"></script>

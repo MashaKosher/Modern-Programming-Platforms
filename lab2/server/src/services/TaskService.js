@@ -39,7 +39,7 @@ class TaskService {
     }
 
     // Создать новую задачу
-    createTask(title, dueDate = null) {
+    createTask(title, dueDate = null, userId = null) {
         return new Promise((resolve, reject) => {
             const validation = Task.validate({ title, dueDate });
             if (!validation.isValid) {
@@ -49,7 +49,8 @@ class TaskService {
             const taskData = {
                 title: title.trim(),
                 completed: false,
-                dueDate: dueDate ? new Date(dueDate).toISOString() : null
+                dueDate: dueDate ? new Date(dueDate).toISOString() : null,
+                userId: userId
             };
 
             this.db.createTask(taskData, (err, result) => {
@@ -161,13 +162,41 @@ class TaskService {
         });
     }
 
-    // Получить задачи по статусу
-    getTasksByStatus(completed) {
+    // Поиск задач пользователя
+    searchTasksByUserId(userId, query) {
         return new Promise((resolve, reject) => {
-            this.getAllTasks().then(tasks => {
-                const filteredTasks = tasks.filter(task => task.completed === completed);
-                resolve(filteredTasks);
-            }).catch(reject);
+            if (!query || query.trim().length === 0) {
+                return this.getTasksByUserId(userId).then(resolve).catch(reject);
+            }
+
+            this.db.searchTasksByUserId(userId, query.trim(), (err, tasks) => {
+                if (err) {
+                    reject(new Error('Ошибка поиска задач: ' + err.message));
+                } else {
+                    resolve(tasks);
+                }
+            });
+        });
+    }
+
+    // Получить задачи по статусу
+    getTasksByStatus(completed, userId = null) {
+        return new Promise((resolve, reject) => {
+            if (userId) {
+                this.db.getTasksByUserId(userId, (err, tasks) => {
+                    if (err) {
+                        reject(new Error('Ошибка получения задач: ' + err.message));
+                    } else {
+                        const filteredTasks = tasks.filter(task => task.completed === completed);
+                        resolve(filteredTasks);
+                    }
+                });
+            } else {
+                this.getAllTasks().then(tasks => {
+                    const filteredTasks = tasks.filter(task => task.completed === completed);
+                    resolve(filteredTasks);
+                }).catch(reject);
+            }
         });
     }
 
@@ -184,35 +213,95 @@ class TaskService {
         });
     }
 
-    // Получить задачи с истекающим сроком
-    getTasksDueSoon(days = 3) {
+    // Получить все задачи пользователя
+    getTasksByUserId(userId) {
         return new Promise((resolve, reject) => {
-            this.getAllTasks().then(tasks => {
-                const dueSoonTasks = tasks.filter(task => {
-                    if (!task.dueDate || task.completed) return false;
-                    
-                    const dueDate = new Date(task.dueDate);
-                    const today = new Date();
-                    const diffTime = dueDate.getTime() - today.getTime();
-                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                    
-                    return diffDays >= 0 && diffDays <= days;
+            this.db.getTasksByUserId(userId, (err, tasks) => {
+                if (err) {
+                    reject(new Error('Ошибка получения задач: ' + err.message));
+                } else {
+                    resolve(tasks);
+                }
+            });
+        });
+    }
+
+    // Получить статистику пользователя
+    getStatsByUserId(userId) {
+        return new Promise((resolve, reject) => {
+            this.db.getStatsByUserId(userId, (err, stats) => {
+                if (err) {
+                    reject(new Error('Ошибка получения статистики: ' + err.message));
+                } else {
+                    resolve(stats);
+                }
+            });
+        });
+    }
+
+    // Получить задачи с истекающим сроком
+    getTasksDueSoon(days = 3, userId = null) {
+        return new Promise((resolve, reject) => {
+            if (userId) {
+                this.db.getTasksByUserId(userId, (err, tasks) => {
+                    if (err) {
+                        reject(new Error('Ошибка получения задач: ' + err.message));
+                    } else {
+                        const dueSoonTasks = tasks.filter(task => {
+                            if (!task.dueDate || task.completed) return false;
+
+                            const dueDate = new Date(task.dueDate);
+                            const today = new Date();
+                            const diffTime = dueDate.getTime() - today.getTime();
+                            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+                            return diffDays >= 0 && diffDays <= days;
+                        });
+                        resolve(dueSoonTasks);
+                    }
                 });
-                resolve(dueSoonTasks);
-            }).catch(reject);
+            } else {
+                this.getAllTasks().then(tasks => {
+                    const dueSoonTasks = tasks.filter(task => {
+                        if (!task.dueDate || task.completed) return false;
+
+                        const dueDate = new Date(task.dueDate);
+                        const today = new Date();
+                        const diffTime = dueDate.getTime() - today.getTime();
+                        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+                        return diffDays >= 0 && diffDays <= days;
+                    });
+                    resolve(dueSoonTasks);
+                }).catch(reject);
+            }
         });
     }
 
     // Получить просроченные задачи
-    getOverdueTasks() {
+    getOverdueTasks(userId = null) {
         return new Promise((resolve, reject) => {
-            this.getAllTasks().then(tasks => {
-                const overdueTasks = tasks.filter(task => {
-                    if (!task.dueDate || task.completed) return false;
-                    return new Date() > new Date(task.dueDate);
+            if (userId) {
+                this.db.getTasksByUserId(userId, (err, tasks) => {
+                    if (err) {
+                        reject(new Error('Ошибка получения задач: ' + err.message));
+                    } else {
+                        const overdueTasks = tasks.filter(task => {
+                            if (!task.dueDate || task.completed) return false;
+                            return new Date() > new Date(task.dueDate);
+                        });
+                        resolve(overdueTasks);
+                    }
                 });
-                resolve(overdueTasks);
-            }).catch(reject);
+            } else {
+                this.getAllTasks().then(tasks => {
+                    const overdueTasks = tasks.filter(task => {
+                        if (!task.dueDate || task.completed) return false;
+                        return new Date() > new Date(task.dueDate);
+                    });
+                    resolve(overdueTasks);
+                }).catch(reject);
+            }
         });
     }
 
