@@ -1,5 +1,5 @@
 import { createContext, useContext, useReducer, useCallback, useEffect } from 'react';
-import AuthService from '../services/auth';
+import websocketService from '../services/websocket';
 
 const AuthContext = createContext();
 
@@ -64,20 +64,18 @@ export function AuthProvider({ children }) {
     useEffect(() => {
         const initAuth = async () => {
             try {
-                const token = AuthService.getToken();
-                const user = AuthService.getCurrentUserFromStorage();
-
-                if (token && user) {
-                    // Проверяем токен на сервере
-                    await AuthService.verifyToken();
-                    dispatch({ type: 'SET_USER', payload: user });
+                const storedUser = localStorage.getItem('user');
+                const storedToken = localStorage.getItem('authToken');
+                if (storedUser && storedToken) {
+                    // попытка верификации через ws
+                    await websocketService.authenticate('verify', storedToken);
+                    dispatch({ type: 'SET_USER', payload: JSON.parse(storedUser) });
                 } else {
                     dispatch({ type: 'SET_USER', payload: null });
                 }
             } catch (error) {
-                console.warn('Ошибка проверки аутентификации:', error.message);
-                // Если токен недействителен, очищаем хранилище
-                AuthService.logout();
+                localStorage.removeItem('authToken');
+                localStorage.removeItem('user');
                 dispatch({ type: 'SET_USER', payload: null });
             }
         };
@@ -90,7 +88,7 @@ export function AuthProvider({ children }) {
         try {
             dispatch({ type: 'SET_LOADING', payload: true });
 
-            const result = await AuthService.register(username, password);
+            const result = await websocketService.register(username, password);
 
             if (result.success) {
                 dispatch({
@@ -114,7 +112,7 @@ export function AuthProvider({ children }) {
         try {
             dispatch({ type: 'SET_LOADING', payload: true });
 
-            const result = await AuthService.login(username, password);
+            const result = await websocketService.login(username, password);
 
             if (result.success) {
                 dispatch({
@@ -135,21 +133,18 @@ export function AuthProvider({ children }) {
 
     // Выход из системы
     const logout = useCallback(() => {
-        AuthService.logout();
+        websocketService.logout();
         dispatch({ type: 'LOGOUT' });
     }, []);
 
     // Получение текущего пользователя
     const getCurrentUser = useCallback(async () => {
         try {
-            const result = await AuthService.getCurrentUser();
-            if (result.success) {
-                dispatch({ type: 'SET_USER', payload: result.data });
-                return result.data;
-            }
-            return null;
+            const stored = localStorage.getItem('user');
+            const user = stored ? JSON.parse(stored) : null;
+            dispatch({ type: 'SET_USER', payload: user });
+            return user;
         } catch (error) {
-            console.error('Ошибка получения пользователя:', error);
             logout();
             return null;
         }

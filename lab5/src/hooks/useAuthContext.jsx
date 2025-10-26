@@ -1,5 +1,5 @@
 import { createContext, useContext, useReducer, useCallback, useEffect } from 'react';
-import websocketService from '../services/websocket';
+import GraphQLService from '../services/graphql';
 
 const AuthContext = createContext();
 
@@ -64,12 +64,19 @@ export function AuthProvider({ children }) {
     useEffect(() => {
         const initAuth = async () => {
             try {
-                const storedUser = localStorage.getItem('user');
-                const storedToken = localStorage.getItem('authToken');
-                if (storedUser && storedToken) {
-                    // попытка верификации через ws
-                    await websocketService.authenticate('verify', storedToken);
-                    dispatch({ type: 'SET_USER', payload: JSON.parse(storedUser) });
+                const token = localStorage.getItem('authToken');
+                const user = JSON.parse(localStorage.getItem('user') || 'null');
+
+                if (token && user) {
+                    // Проверяем через GraphQL me
+                    const me = await GraphQLService.me();
+                    if (me && me.id) {
+                        dispatch({ type: 'SET_USER', payload: user });
+                    } else {
+                        localStorage.removeItem('authToken');
+                        localStorage.removeItem('user');
+                        dispatch({ type: 'SET_USER', payload: null });
+                    }
                 } else {
                     dispatch({ type: 'SET_USER', payload: null });
                 }
@@ -88,19 +95,9 @@ export function AuthProvider({ children }) {
         try {
             dispatch({ type: 'SET_LOADING', payload: true });
 
-            const result = await websocketService.register(username, password);
-
-            if (result.success) {
-                dispatch({
-                    type: 'LOGIN_SUCCESS',
-                    payload: {
-                        user: result.data.user,
-                        token: result.data.token
-                    }
-                });
-            }
-
-            return result;
+            const result = await GraphQLService.register(username, password);
+            dispatch({ type: 'LOGIN_SUCCESS', payload: { user: result.user } });
+            return { success: true, data: { user: result.user, token: result.token } };
         } catch (error) {
             dispatch({ type: 'SET_ERROR', payload: error.message });
             throw error;
@@ -112,19 +109,9 @@ export function AuthProvider({ children }) {
         try {
             dispatch({ type: 'SET_LOADING', payload: true });
 
-            const result = await websocketService.login(username, password);
-
-            if (result.success) {
-                dispatch({
-                    type: 'LOGIN_SUCCESS',
-                    payload: {
-                        user: result.data.user,
-                        token: result.data.token
-                    }
-                });
-            }
-
-            return result;
+            const result = await GraphQLService.login(username, password);
+            dispatch({ type: 'LOGIN_SUCCESS', payload: { user: result.user } });
+            return { success: true, data: { user: result.user, token: result.token } };
         } catch (error) {
             dispatch({ type: 'SET_ERROR', payload: error.message });
             throw error;
@@ -133,17 +120,17 @@ export function AuthProvider({ children }) {
 
     // Выход из системы
     const logout = useCallback(() => {
-        websocketService.logout();
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('user');
         dispatch({ type: 'LOGOUT' });
     }, []);
 
     // Получение текущего пользователя
     const getCurrentUser = useCallback(async () => {
         try {
-            const stored = localStorage.getItem('user');
-            const user = stored ? JSON.parse(stored) : null;
-            dispatch({ type: 'SET_USER', payload: user });
-            return user;
+            const me = await GraphQLService.me();
+            dispatch({ type: 'SET_USER', payload: me });
+            return me;
         } catch (error) {
             logout();
             return null;

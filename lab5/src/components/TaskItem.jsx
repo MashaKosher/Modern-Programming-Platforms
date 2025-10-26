@@ -29,8 +29,9 @@ function TaskItem({ task, onEdit, onUpload }) {
 
   const handleDownloadFile = async (attachment) => {
     try {
-      const ApiService = await import('../services/api');
-      await ApiService.default.downloadFile(task.id, attachment.id);
+      // Прямая ссылка на файл со статического хоста сервера
+      const url = `http://localhost:3001/uploads/${encodeURIComponent(attachment.filename)}`;
+      window.open(url, '_blank');
     } catch (error) {
       alert('Ошибка скачивания файла: ' + error.message);
     }

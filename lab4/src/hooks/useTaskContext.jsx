@@ -1,5 +1,5 @@
 import { createContext, useContext, useReducer, useCallback, useEffect } from 'react';
-import ApiService from '../services/api';
+import websocketService from '../services/websocket';
 import { useAuthContext } from './useAuthContext';
 
 const TaskContext = createContext();
@@ -148,7 +148,7 @@ export function TaskProvider({ children }) {
         await new Promise(resolve => setTimeout(resolve, delay));
       }
 
-      const result = await ApiService.getTasks();
+      const result = await websocketService.getTasks();
       
       if (result && result.tasks) {
         // Преобразовать данные с сервера в формат фронтенда
@@ -197,7 +197,7 @@ export function TaskProvider({ children }) {
 
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
-      const result = await ApiService.createTask(title, dueDate);
+      const result = await websocketService.createTask(title, dueDate);
 
       if (result.success) {
         const newTask = {
@@ -222,7 +222,7 @@ export function TaskProvider({ children }) {
 
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
-      const result = await ApiService.updateTask(id, updates);
+      const result = await websocketService.updateTask(id, updates);
 
       if (result.success) {
         const updatedTask = {
@@ -246,7 +246,7 @@ export function TaskProvider({ children }) {
     }
 
     try {
-      const result = await ApiService.toggleTask(id);
+      const result = await websocketService.toggleTask(id);
 
       if (result.success) {
         const updatedTask = {
@@ -269,7 +269,7 @@ export function TaskProvider({ children }) {
     }
 
     try {
-      const result = await ApiService.deleteTask(id);
+      const result = await websocketService.deleteTask(id);
 
       if (result.success) {
         dispatch({ type: 'DELETE_TASK', payload: { id } });
@@ -288,7 +288,17 @@ export function TaskProvider({ children }) {
 
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
-      const result = await ApiService.uploadFile(taskId, file);
+      // Convert file to base64 and send via ws
+      const reader = new FileReader();
+      const fileData = await new Promise((resolve, reject) => {
+        reader.onload = () => {
+          const base64 = reader.result.split(',')[1];
+          resolve({ name: file.name, size: file.size, mimetype: file.type, data: base64 });
+        };
+        reader.onerror = () => reject(new Error('Ошибка чтения файла'));
+        reader.readAsDataURL(file);
+      });
+      const result = await websocketService.send('uploadFile', { taskId, file: fileData });
 
       if (result.success && result.data && result.data.attachment) {
         dispatch({
@@ -319,7 +329,7 @@ export function TaskProvider({ children }) {
     }
 
     try {
-      const result = await ApiService.deleteFile(taskId, attachmentId);
+      const result = await websocketService.send('deleteFile', { taskId, attachmentId });
 
       if (result.success) {
         dispatch({
@@ -337,6 +347,37 @@ export function TaskProvider({ children }) {
       type: 'SET_FILTER',
       payload: filter
     });
+  }, []);
+
+  // subscribe to server push updates
+  useEffect(() => {
+    const onTaskUpdated = (data) => {
+      const { action, task, taskId, attachment, attachmentId } = data || {};
+      switch (action) {
+        case 'created':
+          dispatch({ type: 'ADD_TASK', payload: task });
+          break;
+        case 'updated':
+        case 'toggled':
+          dispatch({ type: 'UPDATE_TASK', payload: task });
+          break;
+        case 'deleted':
+          dispatch({ type: 'DELETE_TASK', payload: { id: task?.id ?? taskId } });
+          break;
+        case 'file_uploaded':
+          dispatch({ type: 'ADD_ATTACHMENT', payload: { taskId, attachment } });
+          break;
+        case 'file_deleted':
+          dispatch({ type: 'REMOVE_ATTACHMENT', payload: { taskId, attachmentId } });
+          break;
+        default:
+          break;
+      }
+    };
+    websocketService.on('task_updated', onTaskUpdated);
+    return () => {
+      websocketService.off('task_updated', onTaskUpdated);
+    };
   }, []);
 
   const setSearchQuery = useCallback((query) => {

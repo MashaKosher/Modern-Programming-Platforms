@@ -1,4 +1,5 @@
 const express = require('express');
+const http = require('http');
 const path = require('path');
 const fs = require('fs');
 
@@ -22,11 +23,15 @@ const {
     corsWithValidation
 } = require('./src/middleware/security');
 
-// Импорт маршрутов
-const routes = require('./src/routes/index');
+// REST маршруты не используются
 
 // Создание Express приложения
 const app = express();
+const server = http.createServer(app);
+
+// Инициализация WebSocket сервера
+const WebSocketServer = require('./src/services/WebSocketServer');
+const wsServer = new WebSocketServer(server);
 
 // Создание необходимых директорий
 const createDirectories = () => {
@@ -70,8 +75,7 @@ if (config.isProduction()) {
 // Статические файлы (для загруженных файлов)
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Основной маршрут API с префиксом
-app.use(config.app.apiPrefix, routes);
+// Удалены REST маршруты: всё взаимодействие через WebSocket
 
 // Корневой маршрут
 app.get('/', (req, res) => {
@@ -128,11 +132,12 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 // Запуск сервера
-const server = app.listen(config.port, () => {
+server.listen(config.port, () => {
     console.log('\n===================================');
     console.log(`📱 ${config.app.name} v${config.app.version}`);
     console.log(`Сервер запущен на http://localhost:${config.port}`);
-    console.log(`API доступно по адресу: http://localhost:${config.port}${config.app.apiPrefix}`);
+    // REST API отключено; используйте WebSocket
+    console.log(`WebSocket: ws://localhost:${config.port}/ws`);
     console.log(`💚 Проверка здоровья: http://localhost:${config.port}${config.app.apiPrefix}/health`);
     console.log(`Режим: ${config.nodeEnv}`);
     console.log(`Загрузки: ${path.join(__dirname, 'uploads')}`);
