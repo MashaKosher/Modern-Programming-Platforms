@@ -26,6 +26,9 @@ const {
 const { graphqlHTTP } = require('express-graphql');
 const { schema, createResolvers } = require('./src/services/GraphQL');
 
+// REST маршруты
+const apiRoutes = require('./src/routes/index');
+
 // Создание Express приложения
 const app = express();
 
@@ -70,6 +73,9 @@ if (config.isProduction()) {
 
 // Статические файлы (для загруженных файлов)
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// REST API маршруты
+app.use(config.app.apiPrefix, apiRoutes);
 
 // Точка входа GraphQL
 app.use('/graphql', graphqlHTTP({

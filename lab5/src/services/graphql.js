@@ -49,6 +49,7 @@ const GraphQLService = {
   async getTasks() {
     const token = getToken();
     const query = `query($token:String!){ tasks(token:$token){ id title completed createdAt dueDate attachments{ id filename originalName mimetype size uploadedAt } } }`;
+    // НЕТ updatedAt, хотя оно есть в схеме Task
     const data = await gqlRequest(query, { token });
     return data.tasks;
   },

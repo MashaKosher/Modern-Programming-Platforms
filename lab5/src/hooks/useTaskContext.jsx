@@ -1,5 +1,6 @@
 import { createContext, useContext, useReducer, useCallback, useEffect } from 'react';
 import GraphQLService from '../services/graphql';
+import ApiService from '../services/api';
 import { useAuthContext } from './useAuthContext';
 
 const TaskContext = createContext();
@@ -154,13 +155,62 @@ export function TaskProvider({ children }) {
     }
   }, [isAuthenticated]);
 
-  const addAttachment = useCallback(async () => {
-    dispatch({ type: 'SET_ERROR', payload: 'Загрузка вложений через GraphQL не реализована' });
-  }, []);
+  const addAttachment = useCallback(async (taskId, file) => {
+    // Не загружать файлы, если пользователь не аутентифицирован
+    if (!isAuthenticated) {
+      dispatch({ type: 'SET_ERROR', payload: 'Требуется аутентификация. Войдите в систему' });
+      return;
+    }
 
-  const removeAttachment = useCallback(async () => {
-    dispatch({ type: 'SET_ERROR', payload: 'Удаление вложений через GraphQL не реализовано' });
-  }, []);
+    try {
+      dispatch({ type: 'SET_LOADING', payload: true });
+      const result = await ApiService.uploadFile(taskId, file);
+
+      if (result.success && result.data && result.data.attachment) {
+        dispatch({
+          type: 'ADD_ATTACHMENT',
+          payload: {
+            taskId: parseInt(taskId),
+            attachment: {
+              ...result.data.attachment,
+              uploadedAt: result.data.attachment.uploadedAt 
+                ? new Date(result.data.attachment.uploadedAt) 
+                : new Date()
+            }
+          }
+        });
+        dispatch({ type: 'SET_LOADING', payload: false });
+      } else {
+        throw new Error('Неверный формат ответа сервера');
+      }
+    } catch (error) {
+      console.error('Ошибка добавления вложения:', error);
+      dispatch({ type: 'SET_ERROR', payload: error.message });
+      dispatch({ type: 'SET_LOADING', payload: false });
+    }
+  }, [isAuthenticated]);
+
+  const removeAttachment = useCallback(async (taskId, attachmentId) => {
+    // Не удалять файлы, если пользователь не аутентифицирован
+    if (!isAuthenticated) {
+      dispatch({ type: 'SET_ERROR', payload: 'Требуется аутентификация. Войдите в систему' });
+      return;
+    }
+
+    try {
+      const result = await ApiService.deleteFile(taskId, attachmentId);
+
+      if (result.success) {
+        dispatch({
+          type: 'REMOVE_ATTACHMENT',
+          payload: { taskId, attachmentId }
+        });
+      }
+    } catch (error) {
+      console.error('Ошибка удаления вложения:', error);
+      dispatch({ type: 'SET_ERROR', payload: error.message });
+    }
+  }, [isAuthenticated]);
 
   const setFilter = useCallback((filter) => {
     dispatch({ type: 'SET_FILTER', payload: filter });
